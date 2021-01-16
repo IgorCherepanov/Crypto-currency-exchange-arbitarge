@@ -1,4 +1,7 @@
+# Just a script to modify the bot commands and recieve incoming messages
+
 import telebot
+
 f3 = open("bot_key.txt", "r") # Read the Telegram Bot key
 api_bot = f3.readline()
 bot = telebot.TeleBot(api_bot, parse_mode=None) # An instance of teh TeleBot class
