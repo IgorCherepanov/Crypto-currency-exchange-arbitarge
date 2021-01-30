@@ -26,7 +26,7 @@ def get_forex_price(): # The function to get EUR/USD rate
         price = float(resp.text[53:69].replace("</td><td>",""))
     # This data are not avaliable on weakends. So I input the actual value on 16.01.21. Later I will attach the database and read the last available value
     except:
-        price = 1.2076
+        price = 1.2128
     
     return price
     
@@ -41,26 +41,26 @@ threshold_0 = threshold_def # axilary variable
 delta = 0.2 # step in minimum arbitrage to send the next notification
 time_cond = datetime.datetime.now().timestamp() # further it will be the time when the last notification was sent.  
 
-# Main body
-
 try:
     while True:
         
-        imbalance = get_binance_price()/get_forex_price()*100-100 # the arbitrage difference in %
+        forex_price = get_forex_price()
+        binance_price = get_binance_price()
+        imbalance = binance_price/forex_price*100-100 # the arbitrage difference in %
         # Here we update the threshold, becasuse we don't want the bot to send us messages every second if the throshold is exceded
         # Only if the arbitrage diff got gain more or eq than delta. The threshold decays linearly with time (in 7200sec fully recoveres).  
         threshold = max(threshold_def, threshold_0 - (threshold_0-threshold_def)*(datetime.datetime.now().timestamp()-time_cond)/7200)
         
         
         if imbalance >= threshold: # did we hit the threshold and should sell EUR?
-            text = "Sell EUR: " + "% 1.2f " % imbalance +"%. " + "EUR/USD:" + "% 1.4f " % rate
+            text = "Sell EUR: " + "% 1.2f " % imbalance +"%. " + "EUR/USD:" + "% 1.4f " % forex_price
             bot.send_message(chatID, text)
             time_cond = datetime.datetime.now().timestamp() # Datestamp for threshold decay
             threshold = threshold + delta
             threshold_0 = threshold
 
         if imbalance <= -threshold: #did we hit the threshold and should buy EUR?
-            text = "Buy EUR: " + "% 1.2f " % imbalance +"%. " + "EUR/USD:" + "% 1.4f " % rate
+            text = "Buy EUR: " + "% 1.2f " % imbalance +"%. " + "EUR/USD:" + "% 1.4f " % forex_price
             bot.send_message(chatID, text)
             time_cond = datetime.datetime.now().timestamp()
             threshold = threshold + delta
