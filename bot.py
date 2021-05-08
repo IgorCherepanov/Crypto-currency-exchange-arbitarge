@@ -2,19 +2,24 @@ import telebot
 import ibm_db
 import ibm_db_dbi
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone
 import matplotlib.pyplot as plt
 from io import BytesIO
+import time
 
 chatID = 361222436
 
 # Converts time from UTC to CET 
 def utc_to_local(utc_dt):
-    return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
+    return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=timezone.CET())
 
 def last_trades_text(data, i):
     datetime_time = datetime.fromtimestamp(data["TIME_STAMP_OPEN"][i])
+    
+    if time.tzname[0] == "UTC":
+        datetime_time = datetime_time + timedelta(hours=2)
+    
     if data["PROFIT"][i] > 0:
         text = "\U0001F525"
     else:
@@ -25,9 +30,9 @@ def last_trades_text(data, i):
     return text
 
 def accumulative_list(input_list):
-    output_list = [input_list[0]]
+    output_list = [input_list[0]/2]
     for i in range(1,len(input_list)):
-        output_list.append(input_list[i] + output_list[i-1])
+        output_list.append( (100 + input_list[i]/2) * (100 + output_list[i-1]) / 100 - 100 )
     return output_list
 
 # Connecting to the DB
@@ -51,8 +56,6 @@ dsn = (
 conn = ibm_db.connect(dsn, "", "")
 print ("Connected to database: ", dsn_database, "as user: ", dsn_uid, "on host: ", dsn_hostname)
 
-token = open("bot_key.txt", "r").readline() # Read the Telegram Bot key
-bot = telebot.TeleBot(token, parse_mode=None) # An instance of teh TeleBot class
 
 token = open("bot_key.txt", "r").readline() # Read the Telegram Bot key
 bot = telebot.TeleBot(token, parse_mode=None) # An instance of teh TeleBot class
@@ -97,8 +100,12 @@ def send_prices(message):
     query = "select * from crypto_db order by TIME_STAMP desc LIMIT 1"
     data = pd.read_sql(query, pconn)
     datetime_time = datetime.fromtimestamp(data["TIME_STAMP"][0])
+    
+    if time.tzname[0] == "UTC":
+        datetime_time = datetime_time + timedelta(hours=2)
+    
     text = "\U0001F55C"+ "Last update: " + str(datetime_time.strftime("%b %d %H:%M"))
-    text += "\n" + "\U0001F4B5" + "EUR/USD: " + "% 1.4f" % data["EUR_USD_REAL"][0]
+    text += "\n" + "\U0001F4B5" + "EUR/USD: " + "% 1.4f" % data["EUR_USD_USED"][0]
     text +="\n"+ "\U0001F4B3" + "EUR/BUSD: " + "% 1.4f" % data["EUR_BUSD"][0]
     text +="\n"+ "\U0001F680" + "Imbalance: " + "% 1.2f" % data["DIFF_IN_PERC"][0]
     bot.reply_to(message, text)
@@ -121,7 +128,7 @@ def send_chart(message):
     est_pnl_pa = net_pnl * 31622400 / delta.total_seconds()
 
     plt.plot(accumulative_list(data["PROFIT"]), "go-", linewidth = 3.0, ms = 10)
-    plt.ylabel('Net PhL (%)', fontsize = 20)
+    plt.ylabel('Net PnL (%)', fontsize = 20)
     plt.xlabel('Trades', fontsize = 20)
     plt.xticks(fontsize = 20)
     plt.yticks(fontsize = 20)
@@ -131,8 +138,11 @@ def send_chart(message):
              , xy=(0.02, 0.7), xycoords='axes fraction', fontsize = 14)
 
     plt.savefig(bio, bbox_inches = 'tight')
+    
+    plt.clf()
+    
     bio.seek(0)
-
+    
     bot.send_photo(chatID, bio)
     
 @bot.message_handler(commands = ['contact'])
